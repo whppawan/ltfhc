@@ -1,0 +1,59 @@
+#	RewriteEngine On
+#	RewriteCond %{THE_REQUEST} ^.+?\ [^?]+\.php[?\ ]
+#	RewriteRule \.php$ - [F]
+#	RewriteRule user index.php
+
+	<Files ~ "^.*">
+#		Deny from all
+	</Files>
+
+	<Files ~ "^index\.php|css|js|.*\.png|.*\.jpg|.*\.gif|.*\.er">
+#		Order allow,deny
+#		Deny from all
+#		Satisfy All
+	</Files>
+
+	<Files .htaccess>
+		Order Allow,Deny
+		Deny from all
+	</Files>
+	<Files *.php>
+#		Order Deny,Allow
+#		Deny from all
+		Allow from All
+	</Files>
+	<Files index.php>
+#		Order Allow,Deny
+#		Allow from all
+	</Files>
+	<Files home.php>
+#		Order Allow,Deny
+#		Allow from all
+	</Files>
+
+	<FilesMatch ".*\.(css|js)$">
+#		Order Allow,Deny
+#		Allow from All
+#		Deny from 127.0.0.1
+	</FilesMatch>
+
+#	Require all denied
+
+	<Files index.php>
+#		Require all granted
+	</Files>
+
+#	Order Deny,Allow
+#	Deny from 192.168.1.15
+#	Deny from 212.155.
+#	Deny from 1.2.3.4  5.6.7.8 127.0.0.1
+
+	Options -Indexes
+
+#	DirectoryIndex main.php
+
+	AddType application/x-httpd-php .er
+
+	ErrorDocument 404 /monitoringtool/error_pages/404.er
+	ErrorDocument 403 /monitoringtool/error_pages/403.er
+	ErrorDocument 500 /monitoringtool/error_pages/500.er

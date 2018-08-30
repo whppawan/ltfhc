@@ -1,0 +1,140 @@
+<?php
+/*This class is built to make pagination for data list*/
+class Pagination
+{
+	function __construct($numrows, $start, $limit, $page_link)
+	{
+		$this->numrows=$numrows;
+		$this->start=$start;
+		$this->limit=$limit;
+		$this->page_link=$page_link;
+	}
+	
+	/*Pagination function*/
+	function pagination($start)
+	{
+		$numrows=$this->numrows;
+		//$start=$this->start;
+		$limit=$this->limit;
+		$page_link=$this->page_link;
+		
+		$num=1;
+		if($numrows>$limit*2)
+		{
+			if($numrows/$limit>intval($numrows/$limit))
+			{
+				$temp=$numrows-$numrows%$limit;
+				$temp1=intval($numrows/$limit)+1;
+			}
+			else
+			{
+				$temp=$numrows;
+				$temp1=intval($numrows/$limit);
+			}
+	 
+			$loop=intval($start/$limit-1);
+			if($loop<1)
+				$start_loop=1;
+			else
+				$start_loop=$loop;
+	 
+			$limit_loop=$start_loop+3;
+			if($limit_loop>$temp1)
+			{
+				$limit_loop=$temp1;
+				$start_loop=$limit_loop-3;
+				if($start_loop<1)
+					$start_loop=1;
+			}
+	  
+			for($num=$start_loop; $num<=$limit_loop; $num++)
+			{
+				if($num==$start/$limit+1)
+					$color="active";
+				else
+					$color="";
+		
+				$pagination .="<li class='$color'><a href='$page_link&start=";
+				$pagination .=$num*$limit-$limit;
+				$pagination .="'>$num</a></li>";
+			}
+		}
+		return $pagination;
+	}
+	
+	/*Pager function*/
+	function pager($request_start)
+	{
+		$numrows=$this->numrows;
+		$start=$this->start;
+		$limit=$this->limit;
+		$page_link=$this->page_link;
+		
+		if($numrows/$limit>intval($numrows/$limit))
+			$temp=$numrows-$numrows%$limit;
+		else
+			$temp=$numrows;
+			
+		if($numrows<=($start+$limit)*2)
+		{
+			if($numrows<=$limit || $numrows<=$request_start+$limit)
+				$next="";
+			else
+				$next="Next";
+  
+			if(!$request_start)
+			{ 
+				$start=0;
+				$prev="";
+			}
+			else
+			{
+				if($request_start<0)
+					$start=0;
+				else
+					$start=$request_start;
+				$prev="Prev";
+			}
+		}
+		else
+		{
+			if(!$request_start)
+				$start=0;
+			else
+			if($request_start<0)
+				$start=0;
+			else
+			if($request_start>$numrows-1)
+				$start=$request_start-$limit;
+			else
+				$start=$request_start;
+			$first="First";
+			$last="Last";
+			$slash="&nbsp; | &nbsp;";
+			$prev="Prev";
+			$next="Next";
+		}
+		
+		$pager="<ul class='pagination' style='margin:0px;' >";
+		$pager .=$first?"<li><a href='$page_link&start=0'>$first</a></li>":"";
+		if($prev)
+		{
+			$pager .="<li><a href='$page_link&start=";
+			$pager .=($start-$limit)<0 ? 0 : $start-$limit;
+			$pager .="'>$prev</a></li>";
+		}
+		$pager .=$this->pagination($request_start);
+		if($next)
+		{
+			$pager .="<li><a href='$page_link&start=";
+			$pager .=$start+$limit;
+			$pager .="'>$next</a></li>";
+		}
+		$pager .=$last?"<li><a href='$page_link&start=$temp'>$last</a></li>":"";
+		$pager .="<li><a href='#'>(<span id='total'>Total Result</span> = $numrows)</a></li>";
+		$pager .="</ul>";
+		
+		return $pager;
+	}
+}
+?>

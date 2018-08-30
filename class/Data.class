@@ -1,0 +1,215 @@
+<?php
+class Data
+{
+    function setData($con, $where)
+    {
+        $this->con=$con;
+
+        if($where)
+        {
+			$this->refWhrArr=array();
+            foreach($where as $key => $value)
+            {
+				list($field, $oprtr, $and_or)=explode("|", $key);
+				$oprtr=$oprtr?$oprtr:"=";
+				if($whr)
+					$and_or=$and_or?" $and_or ":" AND ";
+				$whr .="$and_or $field $oprtr ?";
+				
+				$ws .="s";
+				$this->refWhrArr[]="$value";
+            }
+			$this->where="WHERE $whr";
+			
+            /*foreach($where as $key => $value)
+            {
+                $whr .="$key=? AND ";
+				$ws .="s";
+				$this->refWhrArr[]="$value";
+            }
+            $this->where="WHERE ".substr("$whr", 0, -4);*/
+			array_unshift($this->refWhrArr , $ws);
+        }
+		else
+		{
+			$this->refWhrArr="";
+			$this->where="";
+		}
+    }
+	
+	function countData($con, $select, $from, $where, $other)
+	{
+		$this::setData($con, $where);
+		$rslt=array(status=>0, msg=>"No data found");
+		$query="SELECT COUNT($select) FROM $from $this->where $other";
+		$stmt=$this->con->prepare($query);
+		if(!$this->con->error)
+		{
+			if($where)
+			{
+				$ref = new ReflectionClass('mysqli_stmt');
+				$method = $ref->getMethod("bind_param");
+				$method->invokeArgs($stmt,$this->refWhrArr);
+			}
+			if($stmt->execute())
+			{
+				$stmt->store_result();
+				$stmt->bind_result($count);
+				if(!$stmt->error)
+				{
+					$stmt->fetch();
+					$rslt["count"]=$count;
+					$rslt["status"]=1;
+					$rslt["msg"]="Query Success";
+					
+					$stmt->free_result();
+					$stmt->close();
+				}
+				else
+				{
+					$rslt["status"]=0;
+					$rslt["msg"]=$stmt->error." Data.class->countData stmt->execut <br><b>Query</b> : $query";
+				}
+			}
+			else
+			{
+				$rslt["status"]=0;
+				$rslt["msg"]=$stmt->error." Data.class->countData stmt <br><b>Query</b> : $query";
+			}
+		}
+		else
+		{
+			$rslt["status"]=0;
+			$rslt["msg"]=$this->con->error." Data.class->countData prepare <br><b>Query</b> : $query";
+		}
+		return($rslt);
+	}
+	
+	function getData($con, $select, $from, $where, $other)
+	{
+		$this::setData($con, $where);
+		$rslt=array(status=>0, msg=>"No data found");
+		$query="SELECT $select FROM $from $this->where $other";
+		$stmt=$this->con->prepare($query);
+		if(!$this->con->error)
+		{
+			if($where)
+			{
+				$ref = new ReflectionClass('mysqli_stmt');
+				$method = $ref->getMethod("bind_param");
+				$method->invokeArgs($stmt,$this->refWhrArr);
+			}
+			if($stmt->execute())
+			{
+				$metaResults = $stmt->result_metadata();
+				$fields = $metaResults->fetch_fields();
+				$statementParams='';
+				//build the bind_results statement dynamically so I can get the results in an array
+				foreach($fields as $field)
+				{
+					if(empty($statementParams))
+						$statementParams.="\$column['".$field->name."']";
+					else
+						$statementParams.=", \$column['".$field->name."']";
+				}
+				$statment="\$stmt->bind_result($statementParams);";
+				eval($statment);
+				$stmt->store_result();
+				if($stmt->num_rows>0)
+				{
+					$rslt["detail"]=array();
+					$temp=array();
+					//$stmt->get_result();
+					while($stmt->fetch())
+					{
+						foreach($column AS $key=>$val)
+						{
+							$temp[$key]=$val;
+						}
+						array_push($rslt["detail"], $temp);
+					}
+					$rslt["status"]=1;
+					$rslt["msg"]="Query Success";
+				}
+				else
+				{
+					$rslt["status"]=2;
+					$rslt["msg"]="Data not found";
+				}
+				$stmt->free_result();
+				$stmt->close();
+			}
+			else
+			{
+				$rslt["status"]=0;
+				$rslt["msg"]=$stmt->error."  Data.class->getData stmt <br><b>Query</b> : $query";
+			}
+		}
+		else
+		{
+			$rslt["status"]=0;
+			$rslt["msg"]=$this->con->error." Data.class->getData prepare <br><b>Query</b> : $query";
+		}
+		return($rslt);
+	}
+	
+	/*$stmt->get_result() function not working in LAMP
+	function getData($con, $select, $from, $where, $other)
+	{
+		$this::setData($con, $where);
+		$rslt=array(status=>0, msg=>"No data found");
+		$query="SELECT $select FROM $from $this->where $other";
+		$stmt=$this->con->prepare($query);
+		if(!$this->con->error)
+		{
+			if($where)
+			{
+				$ref = new ReflectionClass('mysqli_stmt');
+				$method = $ref->getMethod("bind_param");
+				$method->invokeArgs($stmt,$this->refWhrArr);
+			}
+			if($stmt->execute())
+			{
+				$result = $stmt->get_result(); # get results
+				if($result)
+				{
+					//$row = $result->fetch_assoc();
+					//print_r($row);
+					if($result->num_rows>0)
+					{
+						$rslt["detail"]=array();
+						while ($row = $result->fetch_assoc())
+						{
+							//print_r($row);
+							//echo "<br>";
+							array_push($rslt["detail"], $row);
+							print_r($rslt["detail"]);
+							echo "<br>";
+						}
+						$rslt["status"]=1;
+						$rslt["msg"]="Query Success";
+					}
+					else
+					{
+						$rslt["status"]=2;
+						$rslt["msg"]="Data not found";
+					}
+				}
+				$stmt->free_result();
+				$stmt->close();
+			}
+			else
+			{
+				$rslt["status"]=0;
+				$rslt["msg"]=$stmt->error."  Data.class->getData stmt <br><b>Query</b> : $query";
+			}
+		}
+		else
+		{
+			$rslt["status"]=0;
+			$rslt["msg"]=$this->con->error." Data.class->getData prepare <br><b>Query</b> : $query";
+		}
+		return($rslt);
+	}*/
+}
+?>

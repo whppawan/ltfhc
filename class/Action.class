@@ -1,0 +1,227 @@
+<?php
+/*This class perform database operations INSERT, UPDATE AND DELETE*/
+class Action
+{
+    /*This funcion initialize data of the class
+		$con : Database connection,
+		$indicator : Fields and its values that has to be INSERT OR UPDATE,
+		$table : Table Name,
+		$where : WHERE clause*/
+		
+	function setData($con, $indicator, $table, $where)
+    {
+        $this->con=$con;
+        $this->table=$table;
+		$this->s="";
+		if($indicator)
+        {
+			$this->refArr=array();
+            foreach($indicator as $key => $value)
+            {
+                $query .="$key=?, ";
+				$this->s .="s";
+				$this->refArr[]="$value";
+            }
+            $this->query=substr("$query", 0, -2);
+			array_unshift($this->refArr , $this->s);
+        }
+        if($where)
+        {
+			$this->refWhrArr=array();
+            foreach($where as $key => $value)
+            {
+                $whr .="$key=? AND ";
+				$ws .="s";
+				$this->refWhrArr[]="$value";
+            }
+            $this->where="WHERE ".substr("$whr", 0, -4);
+			array_unshift($this->refWhrArr , $ws);
+        }	
+    }
+	
+	/*This funcion check data that has to be INSERT or UPDATE, whether it is already exist in table or not*/
+    function checkData()
+    {
+        $stmt=$this->con->prepare("SELECT * FROM $this->table $this->where");
+		if(!$this->con->error)
+		{
+			$ref    = new ReflectionClass('mysqli_stmt');
+			$method = $ref->getMethod("bind_param");
+			$method->invokeArgs($stmt,$this->refWhrArr);
+		
+			if($stmt->execute())
+			{
+				$stmt->store_result();
+	
+				if($stmt->num_rows>0)
+				{
+					$rslt['status']=2;
+					$rslt['msg']="Data already exist";
+					$stmt->close();
+				}
+				else
+				{
+					$rslt['status']=1;
+					$rslt['msg']="Data not found";
+				}
+			}
+			else
+			{
+				$rslt['status']=0;
+				$rslt['msg']=$stmt->error;
+			}
+		}
+		else
+		{
+			$rslt['status']=0;
+            $rslt['msg']=$this->con->error;
+		}
+		return($rslt);
+    }
+	
+	/*This function perform INSERT data INTO table*/
+    function insertData()
+    {
+		/*Checking the existence of data.
+			IF not exist then INSERT
+			IF exist then do nothing*/
+		$rslt=$this::checkData();
+        if($rslt['status']==1)
+        {
+			$stmt = $this->con->prepare("INSERT INTO $this->table SET $this->query");
+			if(!$this->con->error)
+			{
+				$ref    = new ReflectionClass('mysqli_stmt');
+				$method = $ref->getMethod("bind_param");
+				$method->invokeArgs($stmt,$this->refArr);
+			            
+				if($stmt->execute())
+				{
+					$stmt->free_result();
+					$stmt->close();
+					$rslt['status']=1;
+					$rslt['msg']="Data has been inserted successfully";
+					$rslt['insert_id']=$this->con->insert_id;
+				}
+				else
+				{
+					$rslt['status']=0;
+					$rslt['msg']=$stmt->error;
+				}
+			}
+			else
+			{
+				$rslt['status']=0;
+				$rslt['msg']=$this->con->error;
+			}
+        }
+
+        return($rslt);
+    }
+	
+	/*This function perform UPDATE data INTO table*/
+    function updateData($where)
+    {
+		/*Checking the existence of data.
+			IF not exist then UPDATE
+			IF exist then do nothing*/
+		$rslt=$this::checkData();
+        if($rslt['status']==1)
+        {
+            if($where)
+            {
+                foreach($where as $key => $value)
+                {
+                    $whr .="$key=? AND ";
+					$this->s .="s";
+					$this->refArr[]="$value";
+                }
+                $where="WHERE ".substr("$whr", 0, -4);
+				$this->refArr[0]=$this->s;
+            }
+            $stmt = $this->con->prepare("UPDATE $this->table SET $this->query $where") or die($this->con->error);
+            if(!$this->con->error)
+			{
+				$ref    = new ReflectionClass('mysqli_stmt');
+				$method = $ref->getMethod("bind_param");
+				$method->invokeArgs($stmt,$this->refArr);
+				if($stmt->execute())
+				{
+					$stmt->free_result();
+					$stmt->close();
+					$rslt['status']=1;
+					$rslt['msg']="Data has been updated successfully";
+				}
+				else
+				{
+					$rslt['status']=0;
+					$rslt['msg']=$stmt->error;
+				}
+			}
+			else
+			{
+				$rslt['status']=0;
+				$rslt['msg']=$this->con->error;
+			}
+        }
+        
+        return($rslt);
+    }
+	
+	/*This function perform DELETE data FROM table*/
+    function deleteData()
+    {
+        $stmt=$this->con->prepare("DELETE FROM $this->table $this->where");
+		$ref    = new ReflectionClass('mysqli_stmt');
+		$method = $ref->getMethod("bind_param");
+		$method->invokeArgs($stmt,$this->refWhrArr);
+		
+        if($stmt->execute())
+            $this->verify['delete']="success";
+        else
+            $this->verify['delete']="query error";
+        return($this->verify);
+		
+		$stmt->free_result();
+		$stmt->close();
+    }
+	
+	/*This function perform SELECT data FROM table*/
+    function getData($fields)
+    {
+        $array=array();
+		
+		$stmt=$this->con->prepare("SELECT $fields FROM $this->table $this->where");
+		$ref    = new ReflectionClass('mysqli_stmt');
+		$method = $ref->getMethod("bind_param");
+		$method->invokeArgs($stmt,$this->refWhrArr);
+		
+		//call_user_func_array(array($stmt, 'bind_param'), $refArr);
+		
+        if($stmt->execute())
+		{
+			$result = $stmt->get_result(); # get results
+			if($result)
+			{
+				
+				while ($row = $result->fetch_assoc())
+				{
+					foreach(explode(",", $fields) as $columns)
+					{
+						$array[$columns]=$row[$columns];
+						//$array[$i]=$row[$columns];
+						
+					}
+				}
+			}
+			return($array);
+		}
+		else
+			return(false);
+		
+		$stmt->free_result();
+		$stmt->close();
+    }
+    
+}
+?>

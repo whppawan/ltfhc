@@ -1,0 +1,163 @@
+<?php
+class Login
+{
+	function __construct($con, $login_id, $password, $language)
+	{
+		$this->con=$con;
+		$this->login_id=$login_id;
+		$this->password=$password;
+		$this->language=$language;
+	}
+	
+	function encrypt($string, $data)
+	{
+
+		$salt = substr(md5(mt_rand(), true), 8);
+
+		$key = md5($string . $salt, true);
+		$iv  = md5($key . $string . $salt, true);
+
+		$ct = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $key, $data, MCRYPT_MODE_CBC, $iv);
+
+		return base64_encode('Salted__' . $salt . $ct);
+	}
+	
+	function decrypt($plain_string, $encrypted_string)
+	{
+		$encrypted_string = base64_decode($encrypted_string);
+		$salt = substr($encrypted_string, 8, 8);
+		$ct   = substr($encrypted_string, 16);
+
+		$key = md5($plain_string . $salt, true);
+		$iv  = md5($key . $plain_string . $salt, true);
+
+		$pt = mcrypt_decrypt(MCRYPT_RIJNDAEL_128, $key, $ct, MCRYPT_MODE_CBC, $iv);
+
+		return $pt;
+	}
+	
+	function check_login_id()
+	{
+		$stmt = $this->con->prepare("SELECT login_id FROM ".TBL1." WHERE (login_id = ? OR email = ?) && status='1'") or die($this->con->error);
+		$stmt->bind_param("ss", $this->login_id, $this->login_id); 
+		$stmt->execute();
+		$stmt->store_result();
+		//$stmt->bind_result($id);
+		if($stmt->num_rows>0)
+			$login_table=TBL1;
+
+		return $login_table;
+	}
+	
+	function checkLoginSession1($table, $project_id)
+	{
+		$login_id=$this->login_id;
+		
+		$login=true;
+		
+		require_once('user/class/data.php');
+		$data = new Data();
+		$select="updated_session_time";
+		$from="$table";
+		$where="login_id='$login_id' AND project_id='$project_id'";
+		$check_login_session=$data->getData($select, $from, $where);
+		if(sizeof($check_login_session)>0)
+		{
+			$select="updated_session_time";
+			$from="$table";
+			$where="login_id='$login_id' AND project_id='$project_id' AND (now()-updated_session_time)>5";
+			$check_login_session=$data->getData($select, $from, $where);
+			if(sizeof($check_login_session)>0)
+				mysql_query("DELETE FROM ".TBL36." WHERE login_id='$login_id'") or die(mysql_error());
+			else
+				$login=false;
+		}
+		return($login);
+	}
+	
+	function checkLoginSession($login_session_path, $login_session_time)
+	{
+		$login_id=$this->login_id;
+		$login=true;
+		
+		if(time()-filemtime("$login_session_path$login_id.txt")<$login_session_time)
+			$login=false;
+		else
+			$sessionfile = fopen("$login_session_path$login_id.txt", "w"); fputs($sessionfile, date(("Y-m-d H:i:s"), time()) ); fclose($sessionfile);
+
+		return($login);
+	}
+		
+	function matchPassword($login_table, $entered_password)
+	{
+		$a=array();
+		$stmt = $this->con->prepare("SELECT password FROM $login_table WHERE (login_id = ? OR email = ?) && status='1'") or die($this->con->error);
+		$stmt->bind_param("ss", $this->login_id,$this->login_id); 
+		$stmt->execute();
+		$stmt->store_result();
+		$stmt->bind_result($existing_encrypted_password);
+		$stmt->fetch();
+		$stmt->close();
+		//echo $this::encrypt("6390", ENC_STRING);		
+		$check_current_password=$this::decrypt($entered_password, $existing_encrypted_password);
+		
+		if(trim($check_current_password)==ENC_STRING)
+		{
+			$a["status"]=1;
+			$a["msg"]="Password checked successfull";
+		}
+		else
+		{
+			$a["status"]=0;
+			$a["msg"]="User id and password are not matching";
+		}
+		return($a);
+	}
+	
+	function verify()
+	{
+		if($table=$this::check_login_id())
+		{
+			$rslt=array();
+			$rslt=$this::matchPassword($table, $this->password);
+			if($rslt['status']==1)
+			{
+				$stmt = $this->con->prepare("SELECT a.login_id, a.email, a.name, a.gender, a.contact, b.name AS type, b.folder, a.auth_path, a.role_id, a.user_type_id FROM $table a JOIN ".TBL19." b ON a.user_type_id=b.id WHERE (login_id = ? OR email = ?) AND a.status='1'") or die($this->con->error);
+				$stmt->bind_param( "ss", $this->login_id,$this->login_id); 
+				$stmt->execute();
+				//$stmt->store_result();
+				//$stmt->num_rows>0;
+				$stmt->bind_result($login_id, $email, $name, $gender, $contact, $type, $folder, $auth_path, $role_id, $user_type_id);
+				if($stmt->fetch())
+				{
+					$rslt['status']=1;
+					$rslt['msg']="Logged in successfully. Please wait...";
+					$rslt['login_id']=$login_id;
+					$rslt['email']=$email;
+					$rslt['language']=$this->language;
+					$rslt['name']=$name;
+					$rslt['gender']=$gender;
+					$rslt['contact']=$contact;
+					$rslt['type']=$type;
+					$rslt['folder']=$folder;
+					$rslt['auth_path']=$auth_path;
+					$rslt['role_id']=$role_id;
+					$rslt['user_type_id']=$user_type_id;
+				}
+				else
+				{
+					$rslt['status']=0;
+					$rslt['msg']="Login Id and password are not matching...!!!";
+				}
+			}
+		}
+		else
+		{
+			$rslt['status']=0;
+			$rslt['msg']="Login Id is not found...!!!";
+		}
+			
+		return($rslt);
+	}
+}
+?>

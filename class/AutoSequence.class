@@ -1,0 +1,31 @@
+<?php
+/*This class is made to auto maintain the sequence of component, layoout, and screen.*/
+class AutoSequence extends Action
+{
+    function sequencingData($sequence, $where)
+	{
+		$stmt = $this->con->prepare("SELECT a.id FROM $this->table a WHERE a.status=1 $where ORDER BY a.sequence") or die($con->error);
+		$stmt->execute();
+		$stmt->store_result();
+		$stmt->bind_result($id);
+		$i=1;
+		if($stmt->num_rows()>0)
+		{
+			while($stmt->fetch())
+			{
+				//echo "id:$id, sequence=".$sequence+$i."\n";
+			
+				$this->setData($this->con, array(sequence=>$sequence+$i), $this->table, array(id=>"Update"));
+				$rslt=$this->updateData(array(id=>$id));
+				$i++;				
+			}
+		}
+		else
+		{
+			$rslt['status']=1;
+			$rslt['msg']="Data has been saved successfully";
+		}
+		return($rslt);
+	}
+}
+?>
